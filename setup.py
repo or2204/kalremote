@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, find_packages
+# build by command
+# pyinstaller --noconsole  --onefile kalremote\main.py
 
 dynamic_requires = []
 
 version = 0.1
-
 
 setup(
     name='kalremote',
@@ -25,5 +26,5 @@ setup(
         'Programming Language :: Python',
     ],
     include_package_data=True,
-    zip_safe=False,
+    zip_safe=False
 )
