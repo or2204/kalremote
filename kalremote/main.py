@@ -1,41 +1,51 @@
-###TODO - DO DISCOVER ONLY ONCE! SEARCH FOR THE RELEVANT MAC (FROM JSON)#####
-
-from tkinter import *
-from tkinter import ttk
+import binascii
 import json
-from tkinter import messagebox
-import broadlink
 import time
 import traceback
-import binascii
+from socket import timeout
+from tkinter import *
+from tkinter import messagebox
+from tkinter import ttk
+import broadlink
+
+devices = list
 
 c_title = "KalRemote"
 c_btn_set = "Settings"
 c_btn_save = "Save"
 c_btn_cancel = "Cancel"
+c_btn_close = "Close"
 c_btn_add_button = "Add Button"
-c_w_add_button = "Add Button"
-c_w_settings = "Settings"
+c_w_add_button = "KalRemote Button"
+c_w_settings = "KalRemote Settings"
 c_command_name = "Command"
 c_btn_ok = "OK"
 c_btn_test = "Test"
 c_btn_learn = "Learn"
-c_btn_device = "Set Device"
+c_btn_device = "Discover Device"
 c_l_setcat = "Choose Category"
 c_l_setdevice = "Device"
+t_got_command = "Success in learning the command"
+t_learning_in_progress = "Press button on remote..."
+t_learning_timeout = "No command recorded. Please try again"
 
 msg_title = "KalRemote"
 msg_no_devices = "No devices discovered"
+msg_incorrect_device = "Problem with chosen device"
+msg_try_again = "Device not responding. Please check device is on and try again"
 
-selected_category = ""
-frame_cmd_main = Frame
-frame_cmd_set = Frame
-frame_navigate_set = Frame
-ind_cmd_main = 0
-ind_cmd_set = 0
-entry_name = Entry
-devices = list
 
+def decor_for_broadlink(func):
+    def wrapper(*args, **kargs):
+        for _ in range(0, 3):
+            try:
+                return func(*args, **kargs)
+            except timeout as e:
+                pass
+            except Exception as e:
+                raise e
+        messagebox.showerror(msg_title, msg_try_again)
+    return wrapper
 
 # You would normally put that on the App class
 def show_error(*args):
@@ -43,35 +53,8 @@ def show_error(*args):
     print(''.join(err))
     messagebox.showerror('Exception', ''.join(err))
 
-
 # but this works too
 Tk.report_callback_exception = show_error
-
-
-def get_button_list(cat, cur_config):
-    # TODO - kalconfig should be input for setting win
-    cat_buttons = list(filter(lambda x: x['name'] == cat, cur_config['categories']))
-
-    if len(cat_buttons) == 0:
-        raise Exception('no buttons for ' + cat)
-
-    button_list = []
-
-    for button in cat_buttons[0]['buttons']:
-        button_list.append(button['name'])
-
-    print(button_list)
-
-    return button_list
-
-
-def get_category_list():
-    global kal_config  # TODO - input
-    category_list = []
-    categories = kal_config['categories']
-    for category in categories:
-        category_list.append(category['name'])
-    return category_list
 
 
 class CmdDetail(ttk.Frame):
@@ -82,89 +65,118 @@ class CmdDetail(ttk.Frame):
         self.pack(expand=Y, fill=BOTH)
         self.cat = cat
         self.mac = mac
-
+        self.status_string = StringVar()
+        self.e_command_name = Entry
 
         if mode == "EXIST":
             self.cmd_code = get_cmd_code(self.cat, self.cmd_name)
         else:
             self.cmd_code = ""
 
-        # self.master.title(c_title)
-        # self._create_widgets()
+        self.w = Toplevel(master=pw)
+        self.w.wm_title(c_w_settings)
 
-        w = Toplevel(master=pw)
-        w.wm_title(c_w_settings)
+        self.w.update()
+        self.w.geometry("+%d+%d" % (self.w.master.winfo_rootx() + 50, self.w.master.winfo_rooty() + 50))
 
-        self.build_add_window(w, self.mode, self.cmd_name)
+        self.build_add_window(self.w, self.mode, self.cmd_name)
 
-        w.transient(pw)  # only one window in the task bar
-        w.grab_set()  # modal
+        self.w.transient(pw)  # only one window in the task bar
+        self.w.grab_set()  # modal
         # #TODO
-        pw.wait_window(w)  #
-
-        E1 = Entry
+        pw.wait_window(self.w)  #
 
     def build_add_window(self, pw, mode, cmd):
-        L1 = Label(pw, text=c_command_name)
-        L1.grid(row=0, column=0)  # side=LEFT)
-        self.E1 = Entry(pw, bd=5)
-        self.E1.insert(0, self.cmd_name)
 
-        self.E1.grid(row=0, column=1)  # side=RIGHT)
+        main_area = Frame(pw)
+        l_command_name = Label(main_area, text=c_command_name)
+        l_command_name.grid(row=0, column=0)  # side=LEFT)
+        self.e_command_name = Entry(main_area, bd=5)
+        self.e_command_name.insert(0, self.cmd_name)
 
-        Button(pw, text=c_btn_cancel, command=pw.destroy).grid(row=1, column=0, pady=20, padx=20)
-        Button(pw, text=c_btn_ok, command=lambda arg1=pw: self.ok_cmd_details(arg1)).grid(row=1, column=1, pady=20,
+        self.e_command_name.grid(row=0, column=1)  # side=RIGHT)
+
+
+        Button(main_area, text=c_btn_cancel, command=pw.destroy).grid(row=2, column=0, pady=20, padx=20)
+        Button(main_area, text=c_btn_ok, command=lambda arg1=pw: self.ok_cmd_details(arg1)).grid(row=2, column=1, pady=20,
                                                                                           padx=20)
-        Button(pw, text=c_btn_test, command=self.test_command).grid(row=1, column=2, pady=20, padx=20)
-        Button(pw, text=c_btn_learn, command=self.learn_command).grid(row=1, column=3, pady=20, padx=20)
+        Button(main_area, text=c_btn_test, command=self.test_command).grid(row=2, column=2, pady=20, padx=20)
+        Button(main_area, text=c_btn_learn, command=self.learn_command).grid(row=2, column=3, pady=20, padx=20)
+
+        main_area.grid()
+
+        status_area = Frame(pw)
+
+        l_info_string = Label(status_area, textvariable = self.status_string, fg="red", padx=10, pady=10)
+        l_info_string.pack(side=LEFT)
+
+        status_area.grid(row = 1, column = 0)
+
 
     def learn_command(self):
-        cmd_name = self.E1.get()
-        cmd_bytes_code = self.listen_command()
-        self.cmd_code = bytes_to_string(cmd_bytes_code)
-        print(self.cat + " " + cmd_name + " " + self.cmd_code)
+        cmd_name = self.e_command_name.get()
 
+        self.status_string.set(t_learning_in_progress)
+
+        self.w.update()
+
+        cmd_bytes_code = self.listen_command()
+
+        if cmd_bytes_code != None:
+            self.cmd_code = bytes_to_string(cmd_bytes_code)
+            print(self.cat + " " + cmd_name + " " + self.cmd_code)
+            self.status_string.set(t_got_command)
+        else:
+            self.status_string.set(t_learning_timeout)
+
+        self.w.update()
+
+    @decor_for_broadlink
     def listen_command(self):
         global devices
         index = get_device_index(self.mac)
         devices[index].auth()
         devices[index].enter_learning()
 
-        time.sleep(5)  # TODO - please wait?
+        for i in range(100):
+            ir_packet = devices[index].check_data()
+            print ("Testing ..." + str(ir_packet))
+            if ir_packet:
+                print(str(ir_packet))
+                return ir_packet
+            time.sleep(0.05)
 
-        ir_packet = devices[index].check_data()
+            if i % 5 == 1:
+                self.status_string.set(self.status_string.get() + ".")
+                self.w.update()
+        return None
 
-        devices[index].send_data(ir_packet)
-
-        #    print(str(devices))
-
-        return ir_packet
-
-    def cmd_to_string(self, ir_packet):
-        return "123"
-
+    @decor_for_broadlink
     def test_command(self):
         global devices
         index = get_device_index(self.mac)
         devices[index].auth()
-        devices[index].send_data(string_to_bytes(self.cmd_code))
+        if len(self.cmd_code) > 0:
+            devices[index].send_data(string_to_bytes(self.cmd_code))  # TODO - msg if not valid command
         return 1
 
     def ok_cmd_details(self, w):
         global kal_config
 
+        cat_list = list(filter(lambda x: x['name'] == self.cat, kal_config['categories']))
+        if len(cat_list) == 0:
+            raise Exception("Missed category '" + self.cat + "'")
+
+        cmd_name = self.e_command_name.get()
+        cmd_code = self.cmd_code
         if self.mode == "NEW":
-            # self.temp_config
-            # self.cat
-            cmd_name = self.E1.get()
-            cmd_code = self.cmd_code
-
-            cat_list = list(filter(lambda x: x['name'] == self.cat, kal_config['categories']))
             cat_list[0]['buttons'].append({'code': cmd_code, 'name': cmd_name})
-            pass
         else:
-            pass
-
+            for index, cmd in enumerate(cat_list[0]['buttons']):
+                if cmd ['name'] == self.cmd_name:
+                    cmd['name'] = cmd_name
+                    cmd['code'] = cmd_code
+                    break
         w.destroy()
 
 
@@ -173,30 +185,43 @@ class GenSettings(ttk.Frame):
         global kal_config
         ttk.Frame.__init__(self, name=name)
         self.master.title(c_w_settings)
+        self.w = Toplevel(master=pw)
+        self.w.wm_title(c_w_settings)
+        self.ext_fr_cmd_set = Frame(self.w)
+        self.build_set_window(self.w)
+        self.w.transient(pw)  # only one window in the task bar
+        self.w.grab_set()  # modal
+        self.w.update()
+        self.w.geometry("+%d+%d" % (self.w.master.winfo_rootx() + 50,self.w.master.winfo_rooty() + 50))
 
-        w = Toplevel(master=pw)
-        w.wm_title(c_w_settings)
-
-        self.build_set_window(w)
-
-        w.transient(pw)  # only one window in the task bar
-        w.grab_set()  # modal
-        # #TODO
-        pw.wait_window(w)  #
-        e_device = Entry
+        pw.wait_window(self.w)  #
         cb_cat = ttk.Combobox
+        cb_device = ttk.Combobox
+
+    def set_device_list(self):
+        global kal_config
+
+        device_list = get_device_list()
+        self.cb_device['values'] = device_list
+        self.cb_device['state'] = 'readonly'
+        if kal_config['categories'][0]['device_id'] in self.cb_device['values']:
+            index = self.cb_device['values'].index(kal_config['categories'][0]['device_id'])
+            self.cb_device.current(index)
+            pass
+            if len(device_list) == 1:
+                self.cb_device['state'] = 'disabled'
 
     def build_set_window(self, pw):
         global kal_config
 
         cbp_device = ttk.Labelframe(pw, text=c_l_setdevice)
-        cb_device = Button(cbp_device, text=c_btn_device, command=self.set_device_call_back).pack(side=LEFT)
-        self.e_device = Entry(cbp_device, bd=2)
+        Button(cbp_device, text=c_btn_device, command=self.set_device_call_back).pack(side=LEFT)
+        self.cb_device = ttk.Combobox(cbp_device, values=[], state='normal')
+        self.cb_device.bind("<<ComboboxSelected>>", self.device_selected)
+        self.cb_device.pack(pady=5, padx=10, side=RIGHT)
 
-        devmac = kal_config['categories'][0]['device_id']
-        self.e_device.insert(0, devmac)
-        self.e_device['state'] = 'disabled'
-        self.e_device.pack(side=RIGHT)
+        self.set_device_list()
+
         cbp_device.pack(in_=pw, side=TOP, pady=5, padx=10)
 
         category_list = get_category_list()
@@ -209,48 +234,57 @@ class GenSettings(ttk.Frame):
         # position and display
         cbp_cat.pack(in_=pw, side=TOP, pady=5, padx=10)
 
-        ttk.Button(pw, text=c_btn_cancel, command=pw.destroy).pack()  # grid(row=1, column=0, pady=20, padx=20)
-        ttk.Button(pw, text=c_btn_ok,
-                   command=lambda arg1=pw: self.ok_settings(arg1)).pack()  # grid(row=1, column=0, pady=20, padx=20)
+        self.ext_fr_cmd_set.pack()
+
+        btn = Button(self.w, text=c_btn_add_button,
+                     command=lambda w=self.w: self.add_cmd_call_back(w))
+
+        # btn.grid(ipadx=20, padx=10, pady=5, sticky=W + E + N + S)
+        btn.pack(ipadx=20, padx=10, pady=5)
+
+        navigate_area = Frame(pw)
+        ttk.Button(navigate_area, text=c_btn_cancel, command=pw.destroy).grid(row=0, column=0, pady=20, padx=20)
+        ttk.Button(navigate_area, text=c_btn_ok,
+                   command=lambda arg1=pw: self.ok_settings(arg1)).grid(row=0, column=1, pady=20, padx=20)
+        navigate_area.pack()
+
+
+        self.frame_cmd_set = ttk.LabelFrame(self.ext_fr_cmd_set)
+        # self.frame_cmd_set.pack()
+
+    def synch_choosen_device(self, macdev):  # TODO - give choice - do not determine index=0
+        global kal_config
+
+        index = get_device_index(macdev)
+        if not devices[index].auth():
+            messagebox.showinfo(msg_title, msg_incorrect_device + " " + macdev)
+            return
+
+            # TODO - NOT SUITS MULTIDEVICE
+        for i in range(0, len(kal_config['categories'])):
+            kal_config['categories'][i]['device_id'] = macdev
 
     def set_device_call_back(self):
         global kal_config
-
         global devices
 
         get_devices()
 
+        self.set_device_list()
+
         if len(devices) == 0:
-            messagebox.showinfo(msg_title, msg_no_devices)
             return
 
-        if devices[0].auth():  # TODO - give choice - do not determine index=0
-
-            devmac = bytes_to_string(devices[0].mac)  # binascii.b2a_base64(devices[0].mac).decode()
-
-            self.e_device['state'] = 'normal'
-            self.e_device.delete(0, END)
-
-            self.e_device.insert(0, devmac)  # TODO
-            self.e_device['state'] = 'disabled'
-
-            kal_config['categories'][0]['device_id'] = self.e_device.get()
-
-            # TODO - NOT SUITS MULTIDEVICE
-            for i in range(0, len(kal_config['categories'])):
-                kal_config['categories'][i]['device_id'] = self.e_device.get()
+        if len(devices) == 1 and self.cb_device.get() != None:
+            self.synch_choosen_device(self.cb_device.get())
 
     def ok_settings(self, w):
         global kal_config
-        # self.temp_config[0]['buttons'].append({'code': cmd_code, 'name': cmd_name})
 
         with open("config.json", 'w') as f:
             f.write(json.dumps(kal_config, sort_keys=True, indent=4, separators=(',', ': ')))
         # TODO check status
         w.destroy()
-
-    # def add_command(self, category, cmd_name, cmd_code, mode):#TODO
-    #     kal_config[0]['buttons'].append({'code': cmd_code, 'name': cmd_name})
 
     def add_cmd_call_back(self, pw):
 
@@ -259,42 +293,33 @@ class GenSettings(ttk.Frame):
     def edit_cmd(self, pw, mode, cmd):
 
         cur_category = self.cb_cat.get()
-        w_add = CmdDetail(pw, cur_category, self.e_device.get(), mode, cmd)
+        w_add = CmdDetail(pw, cur_category, self.cb_device.get(), mode, cmd)
+        self.apply_category(self.cb_cat.get())
+
+    def device_selected(self, event):
+        value_of_combo = event.widget.get()
+        self.synch_choosen_device(value_of_combo)
+        pass
+
+    def apply_category(self, cat):
+
+        self.frame_cmd_set.destroy()
+        self.frame_cmd_set = ttk.LabelFrame(self.ext_fr_cmd_set, text="Existing Buttons" )#TODO
+        self.frame_cmd_set.pack()
+
+        self.draw_buttons_for_set(self.frame_cmd_set, cat)
+
+        print(cat)
 
     def category_selected(self, event):
-        global frame_cmd_set
-        global ind_cmd_set
-        global frame_navigate_set
-
         value_of_combo = event.widget.get()
-
-        if ind_cmd_set > 0:
-            frame_cmd_set.destroy()
-            frame_navigate_set.destroy()
-        ind_cmd_set = 1
-        frame_cmd_set = Frame(event.widget.master.master)
-        frame_cmd_set.pack()
-
-        self.draw_buttons_for_set(frame_cmd_set, value_of_combo)
-
-        print(value_of_combo)
-        frame_navigate_set = Frame(event.widget.master.master)
-
-        btn = Button(frame_navigate_set, text=c_btn_add_button, pady=10,
-                     command=lambda w=event.widget.master.master: self.add_cmd_call_back(w))
-
-        btn.grid(ipadx=20, padx=10, pady=5, sticky=W + E + N + S)
-
-        frame_navigate_set.pack()
+        self.apply_category(value_of_combo)
 
     def draw_buttons_for_set(self, frame, cat):
-        global kal_config
-
-        button_list = get_button_list(cat, kal_config)
+        button_list = get_button_list(cat)
         for button in button_list:
             btn = Button(frame, text=button, pady=10,
                          command=lambda arg1=frame.master, arg2=button: self.set_command_call_back(arg1, arg2))
-            # btn.pack(ipadx=20, pady=5)
             btn.grid(ipadx=20, padx=10, pady=5, sticky=W + E + N + S)
 
     def set_command_call_back(self, pw, command):
@@ -306,77 +331,72 @@ class KalRemoteMain(ttk.Frame):
         ttk.Frame.__init__(self, name=name)
         self.pack(expand=Y, fill=BOTH)
         self.master.title(c_title)
+        self.frame_cmd_main = ttk.Labelframe()
         self._create_widgets()
+        self.selected_category = ''
+        self.category_call_back('')
+        self.update()
+        get_devices()
 
     def _create_widgets(self):
         self._create_main_control()
 
     def _create_main_control(self):
-        global selected_category
 
         main_control = Frame(self)
-        # main_control.pack(side=TOP, fill=BOTH, expand=Y)
         main_control.grid()
+
         category_list = get_category_list()
 
-        # button_area = Frame(self)
-        # # button_area.pack(side=TOP, fill=BOTH, expand=Y)
-        # button_area.grid(row = 0,column=2 )
-
         for category in category_list:
-            btn = Button(main_control, text=category, pady=10,
+            # boldFont = Font(size=10, weight="bold")
+
+            btn = Button(main_control, text=category, pady=10, width=8,
                          command=lambda arg=category: self.category_call_back(arg))
             btn.pack(ipadx=20, pady=5)
 
-        control_area = Frame(self)
-        # control_area.pack(side=TOP, fill=BOTH, expand=Y)
-        control_area.grid(row=2)
-        btn_set = Button(control_area, text=c_btn_set, pady=20,
-                         command=lambda w=control_area: self.btn_set_call_back(w))
+
+        setting_area = Frame(self)
+        setting_area.grid(row=1)
+        btn_set = Button(setting_area, text=c_btn_set, pady=20, anchor=CENTER,
+                         command=lambda w=self: self.btn_set_call_back(w))
         btn_set.pack(ipadx=20, padx=20, pady=50)
 
-    def btn_set_call_back(self, pw):
-        # global ind_cmd_set
-        # ind_cmd_set = 0
-        # w_set = Toplevel(master=pw)
-        # w_set.wm_title(c_w_settings)
-        #
-        # self.build_set_window(w_set)
-        #
-        # w_set.transient(pw)  # only one window in the task bar
-        # w_set.grab_set()  # modal
-        #
-        # pw.wait_window(w_set)  #
+        control_area = Frame(self)
+        control_area.grid(row=2)
+        Button(control_area, text=c_btn_close, command=self.master.destroy).grid(row=2, column=0, pady=20, padx=20)
 
-        w_set = GenSettings(pw)
+    def btn_set_call_back(self, pw):
+        GenSettings(pw)
         load_config()
 
     def category_call_back(self, category):
-        global frame_cmd_main
-        global ind_cmd_main
-
-        if ind_cmd_main > 0:
-            frame_cmd_main.destroy()
-        ind_cmd_main = 1
-
-        frame_cmd_main = Frame(self)
-        # button_area.pack(side=TOP, fill=BOTH, expand=Y)
-        frame_cmd_main.grid(row=0, column=2)
-        self.draw_buttons(frame_cmd_main, category)
+        self.frame_cmd_main.destroy()
+        self.frame_cmd_main = ttk.Labelframe(self, text=category)
+        self.frame_cmd_main.grid(row=0, column=2, padx=30)
+        self.draw_buttons(self.frame_cmd_main, category)
+        self.selected_category = category
 
     def draw_buttons(self, frame, cat):
-        global kal_config
-
-        button_list = get_button_list(cat, kal_config)
+        button_list = get_button_list(cat)
         for button in button_list:
             btn = Button(frame, text=button, pady=10,
                          command=lambda arg=button: self.command_call_back(arg))
-            # btn.pack(ipadx=20, pady=5)
             btn.grid(ipadx=20, padx=10, pady=5, sticky=W + E + N + S)
 
+
+    @decor_for_broadlink
     def command_call_back(self, command):
 
-        messagebox.showinfo("Hello Python", "Command was " + command)
+        global devices
+
+        cat_list = list(filter(lambda x: x['name'] == self.selected_category, kal_config['categories']))
+
+        index = get_device_index(cat_list[0]['device_id'])
+        devices[index].auth()
+        cmd_code = get_cmd_code(self.selected_category, command)
+        devices[index].send_data(string_to_bytes(cmd_code))
+        return 1
 
 
 def bytes_to_string(bytes):
@@ -384,6 +404,7 @@ def bytes_to_string(bytes):
 
 
 def string_to_bytes(istr):
+    print(istr)
     return binascii.a2b_base64(istr)
 
 
@@ -397,15 +418,57 @@ def load_config():
 def get_devices():
     global devices
     devices = broadlink.discover(timeout=5)
+    if len(devices) == 0:
+        messagebox.showinfo(msg_title, msg_no_devices)
     a = 0
+
+
+def get_device_list():
+    global devices
+    device_list = []
+    for index, dev in enumerate(devices):
+        device_list.append(mac_to_string(devices[index].mac))
+    return device_list
+
 
 def get_device_index(mac):
     global devices
 
     for index, dev in enumerate(devices):
-        if dev.mac == mac:
+        if mac_to_string(dev.mac) == mac:
             return index
     return -1
+
+
+def get_button_list(cat):
+    global kal_config
+
+    # TODO - kalconfig should be input for setting win
+    cat_buttons = list(filter(lambda x: x['name'] == cat, kal_config['categories']))
+
+    button_list = []
+
+    if len(cat_buttons) == 0:
+        #     raise Exception('no buttons for ' + cat)
+        return button_list
+
+    for button in cat_buttons[0]['buttons']:
+        button_list.append(button['name'])
+
+    print(button_list)
+
+    return button_list
+
+
+def get_category_list():
+    global kal_config
+
+    category_list = []
+    categories = kal_config['categories']
+    for category in categories:
+        category_list.append(category['name'])
+    return category_list
+
 
 def get_cmd_code(cat, cmd_name):
     cat_list = list(filter(lambda x: x['name'] == cat, kal_config['categories']))
@@ -414,9 +477,10 @@ def get_cmd_code(cat, cmd_name):
     return cmd_code
 
 
+def mac_to_string(bytes):
+    return ':'.join('%02x' % b for b in reversed(bytes))
+
+
 if __name__ == '__main__':
     load_config()
-    get_devices()
     KalRemoteMain().mainloop()
-
-
