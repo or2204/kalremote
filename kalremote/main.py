@@ -103,14 +103,14 @@ class CmdDetail(ttk.Frame):
         Button(main_area, text=c_btn_test, command=self.test_command).grid(row=2, column=2, pady=20, padx=20)
         Button(main_area, text=c_btn_learn, command=self.learn_command).grid(row=2, column=3, pady=20, padx=20)
 
-        main_area.grid()
+        main_area.pack()#grid(row=0, column=0)
 
         status_area = Frame(pw)
 
-        l_info_string = Label(status_area, textvariable = self.status_string, fg="red", padx=10, pady=10)
+        l_info_string = Label(status_area, textvariable = self.status_string, fg="red", padx=20, pady=10, anchor=NW)
         l_info_string.pack(side=LEFT)
 
-        status_area.grid(row = 1, column = 0)
+        status_area.pack(side = LEFT)#grid(row = 1, column = 0)
 
 
     def learn_command(self):
@@ -332,11 +332,15 @@ class KalRemoteMain(ttk.Frame):
         self.pack(expand=Y, fill=BOTH)
         self.master.title(c_title)
         self.frame_cmd_main = ttk.Labelframe()
+        self.status_string = StringVar()
         self._create_widgets()
         self.selected_category = ''
         self.category_call_back('')
+        self.status_string.set("Initializing...")
         self.update()
         get_devices()
+        self.status_string.set("Initializing finished")
+        self.set_device_status()
 
     def _create_widgets(self):
         self._create_main_control()
@@ -366,9 +370,24 @@ class KalRemoteMain(ttk.Frame):
         control_area.grid(row=2)
         Button(control_area, text=c_btn_close, command=self.master.destroy).grid(row=2, column=0, pady=20, padx=20)
 
+        status_area = Frame(self)
+
+        l_info_string = Label(status_area, textvariable = self.status_string, fg="red", padx=20, pady=10, anchor=NW)
+        l_info_string.pack(side=LEFT)
+
+        status_area.grid(row=3)#grid(row = 1, column = 0)
+
+    def set_device_status(self):
+        if len(devices) == 0 :
+            self.status_string.set("No device found")
+        else:
+            self.status_string.set("Device found")
+
+
     def btn_set_call_back(self, pw):
         GenSettings(pw)
         load_config()
+        self.set_device_status()
 
     def category_call_back(self, category):
         self.frame_cmd_main.destroy()
@@ -420,7 +439,8 @@ def get_devices():
     devices = broadlink.discover(timeout=5)
     if len(devices) == 0:
         messagebox.showinfo(msg_title, msg_no_devices)
-    a = 0
+        return -1
+    return 1
 
 
 def get_device_list():
