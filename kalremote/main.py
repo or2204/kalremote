@@ -16,7 +16,7 @@ c_btn_save = "Save"
 c_btn_cancel = "Cancel"
 c_btn_close = "Close"
 c_btn_add_button = "Add Button"
-c_w_add_button = "KalRemote Button"
+c_w_button_detail = "KalRemote Button"
 c_w_settings = "KalRemote Settings"
 c_command_name = "Command"
 c_btn_ok = "OK"
@@ -74,7 +74,7 @@ class CmdDetail(ttk.Frame):
             self.cmd_code = ""
 
         self.w = Toplevel(master=pw)
-        self.w.wm_title(c_w_settings)
+        self.w.wm_title(c_w_button_detail)
 
         self.w.update()
         self.w.geometry("+%d+%d" % (self.w.master.winfo_rootx() + 50, self.w.master.winfo_rooty() + 50))
@@ -184,7 +184,6 @@ class GenSettings(ttk.Frame):
     def __init__(self, pw, name='gen_settings'):
         global kal_config
         ttk.Frame.__init__(self, name=name)
-        self.master.title(c_w_settings)
         self.w = Toplevel(master=pw)
         self.w.wm_title(c_w_settings)
         self.ext_fr_cmd_set = Frame(self.w)
@@ -347,35 +346,59 @@ class KalRemoteMain(ttk.Frame):
 
     def _create_main_control(self):
 
+        self.option_add('*tearOff', FALSE)
+        win = self.master
+        menubar = Menu(win)
+        menubar.add_cascade(label=c_btn_set, command=lambda w=self: self.btn_set_call_back(w))
+        win['menu'] = menubar
+
+        # # create a popup menu
+        # menu = Menu(self, tearoff=0)
+        # menu.add_command(label=c_btn_set, command=lambda w=self: self.btn_set_call_back(w))
+        # def popup(event):
+        #     menu.post(event.x_root, event.y_root)
+        #
+        # # attach popup to canvas
+        # self.bind("<Button-3>", popup)
+
         main_control = Frame(self)
-        main_control.grid()
+        main_control.grid(pady=20)
 
         category_list = get_category_list()
-
+        Radiobutton(main_control, text=" ", value=0, indicatoron=0, pady=10, padx=10,
+                    width=10, height=1, font='-weight bold', state=DISABLED, borderwidth=0,
+                    command="").pack()
         for category in category_list:
-            # boldFont = Font(size=10, weight="bold")
+            # btn = Button(main_control, text=category, pady=5, width=8, activebackground="yellow",
+            #              background="white",
+            #              command=lambda arg=category: self.category_call_back(arg))
+            # btn.pack(ipadx=20, pady=10, ipady=10)
 
-            btn = Button(main_control, text=category, pady=10, width=8,
-                         command=lambda arg=category: self.category_call_back(arg))
-            btn.pack(ipadx=20, pady=5)
+            Radiobutton(main_control, text=category, value=category, indicatoron=0, pady=10, padx=10,
+                        width=10, height=2, bg='#c2d6d6', font='-weight bold',selectcolor = '#66ffcc', # variable=var,
+                        command=lambda arg=category: self.category_call_back(arg)).pack()
+            Radiobutton(main_control, text=" ", value=0, indicatoron=0, pady=10, padx=10,
+                        width=10, height=1,font='-weight bold',state=DISABLED, borderwidth=0,
+                        command="").pack()
 
-
-        setting_area = Frame(self)
-        setting_area.grid(row=1)
-        btn_set = Button(setting_area, text=c_btn_set, pady=20, anchor=CENTER,
-                         command=lambda w=self: self.btn_set_call_back(w))
-        btn_set.pack(ipadx=20, padx=20, pady=50)
 
         control_area = Frame(self)
-        control_area.grid(row=2)
-        Button(control_area, text=c_btn_close, command=self.master.destroy).grid(row=2, column=0, pady=20, padx=20)
+        control_area.grid(row=1, column=0,  padx=50, pady=10)
+        Button(control_area, text=c_btn_close, command=self.master.destroy).grid(row=2, column=0, pady=20, padx=20,
+                                                                                 ipadx=40, ipady=10)
+
+        # setting_area = Frame(self)
+        # setting_area.grid(row=2)
+        # btn_set = Button(setting_area, text=c_btn_set,# pady=40,# anchor=CENTER,
+        #                  command=lambda w=self: self.btn_set_call_back(w))
+        # btn_set.pack(ipadx=5, padx=5, pady=10)
 
         status_area = Frame(self)
 
         l_info_string = Label(status_area, textvariable = self.status_string, fg="red", padx=20, pady=10, anchor=NW)
         l_info_string.pack(side=LEFT)
 
-        status_area.grid(row=3)#grid(row = 1, column = 0)
+        status_area.grid(row=3)
 
     def set_device_status(self):
         if len(devices) == 0 :
@@ -399,9 +422,9 @@ class KalRemoteMain(ttk.Frame):
     def draw_buttons(self, frame, cat):
         button_list = get_button_list(cat)
         for button in button_list:
-            btn = Button(frame, text=button, pady=10,
+            btn = Button(frame, text=button, pady=10, background="#99ccff",font='-weight bold',
                          command=lambda arg=button: self.command_call_back(arg))
-            btn.grid(ipadx=20, padx=10, pady=5, sticky=W + E + N + S)
+            btn.grid(ipadx=20, padx=10, pady=15, sticky=W + E + N + S)
 
 
     @decor_for_broadlink
